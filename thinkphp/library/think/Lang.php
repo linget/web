@@ -2,7 +2,7 @@
 // +----------------------------------------------------------------------
 // | ThinkPHP [ WE CAN DO IT JUST THINK ]
 // +----------------------------------------------------------------------
-// | Copyright (c) 2006~2017 http://thinkphp.cn All rights reserved.
+// | Copyright (c) 2006~2016 http://thinkphp.cn All rights reserved.
 // +----------------------------------------------------------------------
 // | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
 // +----------------------------------------------------------------------
@@ -10,6 +10,10 @@
 // +----------------------------------------------------------------------
 
 namespace think;
+
+use think\App;
+use think\Cookie;
+use think\Log;
 
 class Lang
 {
@@ -21,14 +25,8 @@ class Lang
     protected static $langDetectVar = 'lang';
     // 语言Cookie变量
     protected static $langCookieVar = 'think_var';
-    // 语言Cookie的过期时间
-    protected static $langCookieExpire = 3600;
     // 允许语言列表
     protected static $allowLangList = [];
-    // Accept-Language转义为对应语言包名称 系统默认配置
-    protected static $acceptLanguage = [
-        'zh-hans-cn' => 'zh-cn',
-    ];
 
     // 设定当前的语言
     public static function range($range = '')
@@ -38,7 +36,6 @@ class Lang
         } else {
             self::$range = $range;
         }
-        return self::$range;
     }
 
     /**
@@ -84,9 +81,7 @@ class Lang
                 // 记录加载信息
                 App::$debug && Log::record('[ LANG ] ' . $_file, 'info');
                 $_lang = include $_file;
-                if (is_array($_lang)) {
-                    $lang = array_change_key_case($_lang) + $lang;
-                }
+                $lang  = array_change_key_case($_lang) + $lang;
             }
         }
         if (!empty($lang)) {
@@ -98,6 +93,7 @@ class Lang
     /**
      * 获取语言定义(不区分大小写)
      * @param string|null   $name 语言变量
+     * @param array         $vars 变量替换
      * @param string        $range 语言作用域
      * @return mixed
      */
@@ -156,24 +152,25 @@ class Lang
     {
         // 自动侦测设置获取语言选择
         $langSet = '';
-
         if (isset($_GET[self::$langDetectVar])) {
             // url中设置了语言变量
             $langSet = strtolower($_GET[self::$langDetectVar]);
+            Cookie::set(self::$langCookieVar, $langSet, 3600);
+        } elseif (Cookie::get(self::$langCookieVar)) {
+            // 获取上次用户的选择
+            $langSet = strtolower(Cookie::get(self::$langCookieVar));
         } elseif (isset($_SERVER['HTTP_ACCEPT_LANGUAGE'])) {
             // 自动侦测浏览器语言
             preg_match('/^([a-z\d\-]+)/i', $_SERVER['HTTP_ACCEPT_LANGUAGE'], $matches);
-            $langSet     = strtolower($matches[1]);
-            $acceptLangs = Config::get('header_accept_lang');
-            if (isset($acceptLangs[$langSet])) {
-                $langSet = $acceptLangs[$langSet];
-            } elseif (isset(self::$acceptLanguage[$langSet])) {
-                $langSet = self::$acceptLanguage[$langSet];
-            }
+            $langSet = strtolower($matches[1]);
+            Cookie::set(self::$langCookieVar, $langSet, 3600);
         }
         if (empty(self::$allowLangList) || in_array($langSet, self::$allowLangList)) {
             // 合法的语言
             self::$range = $langSet ?: self::$range;
+        }
+        if ('zh-hans-cn' == self::$range) {
+            self::$range = 'zh-cn';
         }
         return self::$range;
     }
@@ -196,16 +193,6 @@ class Lang
     public static function setLangCookieVar($var)
     {
         self::$langCookieVar = $var;
-    }
-
-    /**
-     * 设置语言的cookie的过期时间
-     * @param string $expire 过期时间
-     * @return void
-     */
-    public static function setLangCookieExpire($expire)
-    {
-        self::$langCookieExpire = $expire;
     }
 
     /**

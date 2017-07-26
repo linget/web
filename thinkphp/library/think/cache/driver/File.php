@@ -2,7 +2,7 @@
 // +----------------------------------------------------------------------
 // | ThinkPHP [ WE CAN DO IT JUST THINK ]
 // +----------------------------------------------------------------------
-// | Copyright (c) 2006~2017 http://thinkphp.cn All rights reserved.
+// | Copyright (c) 2006~2016 http://thinkphp.cn All rights reserved.
 // +----------------------------------------------------------------------
 // | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
 // +----------------------------------------------------------------------
@@ -21,14 +21,14 @@ class File extends Driver
 {
     protected $options = [
         'expire'        => 0,
-        'cache_subdir'  => true,
+        'cache_subdir'  => false,
         'prefix'        => '',
         'path'          => CACHE_PATH,
         'data_compress' => false,
     ];
 
     /**
-     * 构造函数
+     * 架构函数
      * @param array $options
      */
     public function __construct($options = [])
@@ -221,14 +221,9 @@ class File extends Driver
             $this->rm('tag_' . md5($tag));
             return true;
         }
-        $files = (array) glob($this->options['path'] . ($this->options['prefix'] ? $this->options['prefix'] . DS : '') . '*');
-        foreach ($files as $path) {
-            if (is_dir($path)) {
-                array_map('unlink', glob($path . '/*.php'));
-                rmdir($path);
-            } else {
-                unlink($path);
-            }
+        $fileLsit = (array) glob($this->options['path'] . '*');
+        foreach ($fileLsit as $path) {
+            is_file($path) && unlink($path);
         }
         return true;
     }

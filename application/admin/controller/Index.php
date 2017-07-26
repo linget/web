@@ -38,7 +38,6 @@ class Index extends Base
 
     		var_dump($_POST);die;
     	}
-    	return $this->fetch('Index/index');
     }
 
     // 后台管理员session

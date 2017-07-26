@@ -2,7 +2,7 @@
 // +----------------------------------------------------------------------
 // | ThinkPHP [ WE CAN DO IT JUST THINK ]
 // +----------------------------------------------------------------------
-// | Copyright (c) 2006~2017 http://thinkphp.cn All rights reserved.
+// | Copyright (c) 2006~2016 http://thinkphp.cn All rights reserved.
 // +----------------------------------------------------------------------
 // | Licensed ( http://www.apache.org/licenses/LICENSE-2.0 )
 // +----------------------------------------------------------------------
@@ -11,6 +11,11 @@
 
 namespace think;
 
+use think\Cache;
+use think\Config;
+use think\Debug;
+use think\Env;
+use think\Request;
 use think\response\Json as JsonResponse;
 use think\response\Jsonp as JsonpResponse;
 use think\response\Redirect as RedirectResponse;
@@ -19,6 +24,7 @@ use think\response\Xml as XmlResponse;
 
 class Response
 {
+
     // 原始数据
     protected $data;
 
@@ -39,7 +45,7 @@ class Response
     protected $content = null;
 
     /**
-     * 构造函数
+     * 架构函数
      * @access   public
      * @param mixed $data    输出数据
      * @param int   $code
@@ -49,12 +55,12 @@ class Response
     public function __construct($data = '', $code = 200, array $header = [], $options = [])
     {
         $this->data($data);
+        $this->header = $header;
+        $this->code   = $code;
         if (!empty($options)) {
             $this->options = array_merge($this->options, $options);
         }
         $this->contentType($this->contentType, $this->charset);
-        $this->header = array_merge($this->header, $header);
-        $this->code   = $code;
     }
 
     /**
@@ -89,9 +95,6 @@ class Response
      */
     public function send()
     {
-        // 监听response_send
-        Hook::listen('response_send', $this);
-
         // 处理输出数据
         $data = $this->getContent();
 
@@ -100,30 +103,23 @@ class Response
             Debug::inject($this, $data);
         }
 
-        if (200 == $this->code) {
-            $cache = Request::instance()->getCache();
-            if ($cache) {
-                $this->header['Cache-Control'] = 'max-age=' . $cache[1] . ',must-revalidate';
-                $this->header['Last-Modified'] = gmdate('D, d M Y H:i:s') . ' GMT';
-                $this->header['Expires']       = gmdate('D, d M Y H:i:s', $_SERVER['REQUEST_TIME'] + $cache[1]) . ' GMT';
-                Cache::set($cache[0], [$data, $this->header], $cache[1]);
-            }
-        }
-
         if (!headers_sent() && !empty($this->header)) {
             // 发送状态码
             http_response_code($this->code);
             // 发送头部信息
             foreach ($this->header as $name => $val) {
-                if (is_null($val)) {
-                    header($name);
-                } else {
-                    header($name . ':' . $val);
-                }
+                header($name . ':' . $val);
             }
         }
-
         echo $data;
+
+        if (200 == $this->code) {
+            $cache = Request::instance()->getCache();
+            if ($cache) {
+                Cache::set($cache[0], $data, $cache[1]);
+                Cache::set($cache[0] . '_header', $this->header['Content-Type']);
+            }
+        }
 
         if (function_exists('fastcgi_finish_request')) {
             // 提高页面响应
@@ -132,11 +128,6 @@ class Response
 
         // 监听response_end
         Hook::listen('response_end', $this);
-
-        // 清空当次请求有效的数据
-        if (!($this instanceof RedirectResponse)) {
-            Session::flush();
-        }
     }
 
     /**
@@ -285,11 +276,7 @@ class Response
      */
     public function getHeader($name = '')
     {
-        if (!empty($name)) {
-            return isset($this->header[$name]) ? $this->header[$name] : null;
-        } else {
-            return $this->header;
-        }
+        return !empty($name) ? $this->header[$name] : $this->header;
     }
 
     /**
